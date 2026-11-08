@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
+#include <Preferences.h>
 #include <esp_wifi.h>
 #include <esp_timer.h>
 #include <SPI.h>
@@ -110,10 +111,11 @@ static int g_savedPmkidCount = 0;
 static int g_eapolCount = 0;
 static volatile uint32_t g_drops = 0;
 
-// Networks that must never be selected or boosted. Exact, case-sensitive.
-static const char *const SKIP_SSIDS[] = {
-    "PrivateNet",
-};
+// The skip list is stored in NVS, never in the repository.
+static char g_skipSsids[MAX_SKIP_SSIDS][33];
+static int g_skipCount = 0;
+static Preferences g_prefs;
+static bool g_prefsOk = false;
 
 static bool g_sdOk = false;
 static bool g_pcapOk = false;
@@ -202,10 +204,118 @@ static bool isGroupMac(const uint8_t *a) {
 
 static bool isSkippedSsid(const char *ssid) {
   if (!ssid || !ssid[0]) return false;
-  for (size_t i = 0; i < sizeof(SKIP_SSIDS) / sizeof(SKIP_SSIDS[0]); i++) {
-    if (strcmp(ssid, SKIP_SSIDS[i]) == 0) return true;
+  for (int i = 0; i < g_skipCount; i++) {
+    if (strcmp(ssid, g_skipSsids[i]) == 0) return true;
   }
   return false;
+}
+
+static void loadSkipList() {
+  g_skipCount = 0;
+  if (!g_prefs.begin("pwnagotchi", false)) {
+    g_prefsOk = false;
+    return;
+  }
+  g_prefsOk = true;
+  String saved = g_prefs.getString("skips", "");
+  int start = 0;
+  while (start < (int)saved.length() && g_skipCount < MAX_SKIP_SSIDS) {
+    int end = saved.indexOf('\n', start);
+    if (end < 0) end = saved.length();
+    int n = end - start;
+    if (n > 0) {
+      if (n > 32) n = 32;
+      memcpy(g_skipSsids[g_skipCount], saved.c_str() + start, n);
+      g_skipSsids[g_skipCount][n] = 0;
+      g_skipCount++;
+    }
+    start = end + 1;
+  }
+}
+
+static void saveSkipList() {
+  if (!g_prefsOk) return;
+  String out;
+  for (int i = 0; i < g_skipCount; i++) {
+    if (i) out += '\n';
+    out += g_skipSsids[i];
+  }
+  g_prefs.putString("skips", out);
+}
+
+static void refreshApSkips() {
+  for (int i = 0; i < g_apCount; i++) {
+    g_aps[i].skipped = isSkippedSsid(g_aps[i].ssid);
+  }
+}
+
+bool snifferSkipAdd(const char *ssid) {
+  if (!ssid || !ssid[0]) {
+    Serial.println("{\"t\":\"error\",\"msg\":\"empty SSID\"}");
+    return false;
+  }
+  if (strlen(ssid) > 32) {
+    Serial.println("{\"t\":\"error\",\"msg\":\"SSID longer than 32 bytes\"}");
+    return false;
+  }
+  if (isSkippedSsid(ssid)) {
+    Serial.println("{\"t\":\"skip\",\"add\":1,\"exists\":1}");
+    return true;
+  }
+  if (g_skipCount >= MAX_SKIP_SSIDS) {
+    Serial.println("{\"t\":\"error\",\"msg\":\"skip list full\"}");
+    return false;
+  }
+  strlcpy(g_skipSsids[g_skipCount], ssid, sizeof(g_skipSsids[0]));
+  g_skipCount++;
+  saveSkipList();
+  refreshApSkips();
+
+  char esc[80];
+  jsonEscape(ssid, esc, sizeof(esc));
+  Serial.printf("{\"t\":\"skip\",\"add\":1,\"ssid\":\"%s\",\"count\":%d}\n",
+                esc, g_skipCount);
+  return true;
+}
+
+bool snifferSkipDel(const char *ssid) {
+  if (!ssid || !ssid[0]) {
+    Serial.println("{\"t\":\"error\",\"msg\":\"empty SSID\"}");
+    return false;
+  }
+  int found = -1;
+  for (int i = 0; i < g_skipCount; i++) {
+    if (strcmp(ssid, g_skipSsids[i]) == 0) {
+      found = i;
+      break;
+    }
+  }
+  if (found < 0) {
+    Serial.println("{\"t\":\"error\",\"msg\":\"SSID is not in the skip list\"}");
+    return false;
+  }
+  for (int i = found; i + 1 < g_skipCount; i++) {
+    strlcpy(g_skipSsids[i], g_skipSsids[i + 1], sizeof(g_skipSsids[0]));
+  }
+  g_skipCount--;
+  g_skipSsids[g_skipCount][0] = 0;
+  saveSkipList();
+  refreshApSkips();
+
+  char esc[80];
+  jsonEscape(ssid, esc, sizeof(esc));
+  Serial.printf("{\"t\":\"skip\",\"del\":1,\"ssid\":\"%s\",\"count\":%d}\n",
+                esc, g_skipCount);
+  return true;
+}
+
+bool snifferSkipClear() {
+  g_skipCount = 0;
+  for (int i = 0; i < MAX_SKIP_SSIDS; i++) g_skipSsids[i][0] = 0;
+  saveSkipList();
+  refreshApSkips();
+  Serial.println("{\"t\":\"skip\",\"clear\":1,\"count\":0}");
+  return true;
 }
 
 static bool timeReached(uint32_t now, uint32_t target) {
@@ -1527,6 +1637,8 @@ bool snifferBegin() {
   WiFi.disconnect(false);
   delay(50);
 
+  loadSkipList();
+
   esp_wifi_set_ps(WIFI_PS_NONE);
   esp_wifi_set_bandwidth(WIFI_IF_STA, WIFI_BW_HT20);
 
@@ -1700,9 +1812,9 @@ void snifferPrintClients() {
 }
 
 void snifferPrintSkips() {
-  Serial.printf("SKIP %u\n", (unsigned)(sizeof(SKIP_SSIDS) / sizeof(SKIP_SSIDS[0])));
-  for (size_t i = 0; i < sizeof(SKIP_SSIDS) / sizeof(SKIP_SSIDS[0]); i++) {
-    Serial.println(SKIP_SSIDS[i]);
+  Serial.printf("SKIP %d\n", g_skipCount);
+  for (int i = 0; i < g_skipCount; i++) {
+    Serial.println(g_skipSsids[i]);
   }
 }
 
@@ -1805,8 +1917,8 @@ void snifferSelfTest() {
   bool m2m3Ok = (m2m3 & EVENT_HS) != 0;
 
   bool skipOk = !isSkippedSsid("ExampleNet");
-  if (sizeof(SKIP_SSIDS) / sizeof(SKIP_SSIDS[0]) > 0) {
-    skipOk = skipOk && isSkippedSsid(SKIP_SSIDS[0]);
+  if (g_skipCount > 0) {
+    skipOk = skipOk && isSkippedSsid(g_skipSsids[0]);
   }
 
   static const uint8_t expectedPmkid[16] = {

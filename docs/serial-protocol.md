@@ -19,6 +19,9 @@ Send one command per line.
 | `aps` | Print the AP table. | Plain text table |
 | `clients` | Print the client table. | Plain text table |
 | `skips` | Print the SSID skip list. | Plain text list |
+| `skip add <ssid>` | Add an SSID to the NVS skip list. | `skip` event or `error` |
+| `skip del <ssid>` | Remove an SSID from the NVS skip list. | `skip` event or `error` |
+| `skip clear` | Empty the NVS skip list. | `skip` event |
 | `pcap` | Print the current capture path and size. | `pcap` event |
 | `pause` | Stop sniffing and close the PCAP. | `state` event |
 | `resume` | Start sniffing and reopen the PCAP. | `state` event |
@@ -46,8 +49,9 @@ is the legacy broadcast mode and is explicit only. Use either one only on
 networks you own or have written permission to test.
 
 APs whose SSID is in the skip list are never selected by `target` or used by
-boost. `PrivateNet` is skipped by default. Edit `SKIP_SSIDS` in
-`firmware/pwnagotchi/sniffer.cpp` to change the list.
+boost. The skip list is stored in NVS on the device, not in the repository.
+Add entries with `skip add <ssid>`, remove them with `skip del <ssid>`, clear
+with `skip clear`, and print with `skips`.
 
 `clear` resets the detected counters, the per-AP handshake/PMKID flags, and the
 handshake pair state. It does not reset `SAVED`, because the current PCAP file
@@ -71,7 +75,7 @@ Emitted once at startup.
 Lists the supported command strings.
 
 ```json
-{"t":"help","commands":["help","status","aps","clients","skips","pcap","pause","resume","hop","lock <ch>","target <index>","raw <index>","boost on|off","boost broadcast on|off","clear","selftest","demo hs|pmkid|happy|sleep","reboot"]}
+{"t":"help","commands":["help","status","aps","clients","skips","pcap","pause","resume","hop","lock <ch>","target <index>","raw <index>","skip add|del <ssid>","skip clear","boost on|off","boost broadcast on|off","clear","selftest","demo hs|pmkid|happy|sleep","reboot"]}
 ```
 
 ### `ap`
@@ -231,6 +235,16 @@ Emitted when pause state changes.
 {"t":"clear","ok":1}
 ```
 
+### `skip`
+
+Emitted when the NVS skip list changes.
+
+```json
+{"t":"skip","add":1,"ssid":"PrivateNet","count":1}
+{"t":"skip","del":1,"ssid":"PrivateNet","count":0}
+{"t":"skip","clear":1,"count":0}
+```
+
 ### `selftest`
 
 ```json
@@ -300,7 +314,7 @@ deauth transmit failures. Warnings are advisory.
 ```text
 #   SSID                             BSSID             CH  dBm ENC     PMF SKIP HS PMK
 0   ExampleNet                       aa:bb:cc:dd:ee:ff  6  -48 WPA2    .   .    Y  .
-1   PrivateNet                         11:22:33:44:55:66 11  -71 WPA2    .   Y    .  .
+1   PrivateNet                       11:22:33:44:55:66 11  -71 WPA2    .   Y    .  .
 ```
 
 `PMF` is `R` when PMF is required, `C` when capable, and `.` otherwise.
@@ -321,11 +335,12 @@ was seen for that AP. `PMK` is `Y` when a PMKID was seen.
 
 ## Plain text `skips` list
 
-`skips` prints the compiled-in SSID skip list.
+`skips` prints the NVS SSID skip list.
 
 ```text
-SKIP 1
+SKIP 2
 PrivateNet
+PrivateNet_EXT
 ```
 
 ## Host tool

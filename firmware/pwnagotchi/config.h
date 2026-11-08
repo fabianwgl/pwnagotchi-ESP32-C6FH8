@@ -20,6 +20,7 @@
 #define MAX_APS          64
 #define MAX_HS           16
 #define MAX_CLIENTS      48
+#define MAX_SKIP_SSIDS   8
 #define MAX_FRAME        640
 #define PKT_QUEUE_LEN    16
 #define CLIENT_QUEUE_LEN 32

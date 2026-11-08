@@ -109,10 +109,11 @@ security type in that case. A new AP seen only in a truncated frame starts as
 
 ## Skip list
 
-`SKIP_SSIDS` in `sniffer.cpp` is an exact, case-sensitive SSID list. A matching
-AP stays visible in `aps` with `SKIP Y`, but `strongestIndex()`, `target`, and
-`boost` all refuse it. `PrivateNet` is in the list by default. `skips` prints the
-list.
+The skip list is an exact, case-sensitive SSID list stored in NVS under the
+`pwnagotchi` namespace. It is not part of the repository. Add entries with
+`skip add <ssid>`, remove them with `skip del <ssid>`, clear with
+`skip clear`, and print with `skips`. A matching AP stays visible in `aps`
+with `SKIP Y`, but `strongestIndex()`, `target`, and `boost` all refuse it.
 
 ## Handshake state machine
 
@@ -203,6 +204,7 @@ DejaVuSansMono-Bold at 45 px.
 | AP table | 64 |
 | Client table | 48 |
 | Handshake table | 16 |
+| Skip list | 8 |
 | Packet queue | 16 |
 | Client observation queue | 32 |
 | Maximum frame | 640 bytes |

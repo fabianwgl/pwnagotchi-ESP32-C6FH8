@@ -110,8 +110,9 @@ python3 -m venv .venv
 - `boost broadcast on` is the explicit legacy mode, 2500 ms per frame. It is
   never the default.
 - Boost stops automatically when the target handshake or PMKID is saved.
-- SSIDs in `SKIP_SSIDS` are never selected by `target`, `strongestIndex`, or
-  boost. `PrivateNet` is in the list by default.
+- SSIDs in the NVS skip list are never selected by `target`,
+  `strongestIndex`, or boost. The skip list is private device state and must
+  never be committed to the repository.
 - PMF-required APs are never boosted. PMF-capable APs may be boosted.
 - Replay counters must match for M1+M2 and `m3Replay == m2Replay + 1` for
   M2+M3.

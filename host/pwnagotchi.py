@@ -118,7 +118,7 @@ def print_event(line: str) -> None:
               f"mismatch={e.get('mismatch')} pmkid={e.get('pmkid')} "
               f"m2m3={e.get('m2m3')} skip={e.get('skip')} "
               f"assoc_pmkid={e.get('assoc_pmkid')} pmf={e.get('pmf')}")
-    elif t in {"sd", "pcap", "target", "mode", "state", "clear", "face", "sniffer", "demo"}:
+    elif t in {"sd", "pcap", "target", "mode", "state", "clear", "face", "sniffer", "demo", "skip"}:
         print(json.dumps(e, separators=(",", ":")))
     # ignore periodic noise unless it is a table or an unknown event
 

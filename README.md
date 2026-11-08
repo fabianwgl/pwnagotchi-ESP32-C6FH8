@@ -62,8 +62,9 @@ under heavy load.
 - Optional boost mode: targeted unicast deauth to one learned client of the
   selected AP. Off by default. Requires an explicit target.
 - Optional `boost broadcast on` keeps the old broadcast behavior for testing.
-- Built-in skip list for networks that must never be targeted. `PrivateNet` is
-  skipped by default.
+- Runtime skip list for networks that must never be targeted. It is stored in
+  NVS on the device, not in the repository. Add entries with
+  `skip add <ssid>`; remove them with `skip del <ssid>`.
 - PMF-required APs are detected and boost refuses them because forged deauth
   frames are ignored.
 
@@ -132,6 +133,9 @@ Commands (send them with `--cmd`, or type them into a serial monitor):
 | `aps` | AP table with indices |
 | `clients` | client table with indices |
 | `skips` | SSIDs that are never targeted |
+| `skip add <ssid>` | add an SSID to the NVS skip list |
+| `skip del <ssid>` | remove an SSID from the NVS skip list |
+| `skip clear` | empty the NVS skip list |
 | `pcap` | PCAP path and size |
 | `pause` / `resume` | stop or start sniffing |
 | `hop` | channel hopping |
@@ -157,12 +161,13 @@ the radio to its channel. `boost on` starts targeted unicast deauth to one
 client learned on that AP, with 3 frames, a 5 second cooldown, and a maximum of
 12 bursts. `boost broadcast on` is the old broadcast behavior and is explicit
 only. Use either one only on networks you own or have written permission to
-test. The built-in skip list (`skips`) is never targeted.
+test. The runtime skip list (`skips`) is never targeted.
 
 Boost stops automatically when the target handshake or PMKID is saved to the
 PCAP. It also refuses targets that require PMF, because clients ignore forged
-deauth frames there. `PrivateNet` is in the skip list by default. Edit
-`SKIP_SSIDS` in `firmware/pwnagotchi/sniffer.cpp` to change the list.
+deauth frames there. The skip list lives in NVS on the board, so private SSIDs
+do not need to be committed. Add one with `skip add <ssid>` and remove it with
+`skip del <ssid>`.
 
 ## Capture and crack
 

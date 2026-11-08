@@ -84,6 +84,7 @@ static void printHelp() {
   Serial.println("{\"t\":\"help\",\"commands\":["
                  "\"help\",\"status\",\"aps\",\"clients\",\"skips\",\"pcap\",\"pause\",\"resume\","
                  "\"hop\",\"lock <ch>\",\"target <index>\",\"raw <index>\","
+                 "\"skip add|del <ssid>\",\"skip clear\","
                  "\"boost on|off\",\"boost broadcast on|off\","
                  "\"clear\",\"selftest\",\"demo hs|pmkid|happy|sleep\",\"reboot\"]}");
 }
@@ -102,6 +103,12 @@ static void handleCommand(char *line) {
     snifferPrintClients();
   } else if (ieq(line, "skips")) {
     snifferPrintSkips();
+  } else if (startsWithI(line, "skip add ")) {
+    snifferSkipAdd(line + 9);
+  } else if (startsWithI(line, "skip del ")) {
+    snifferSkipDel(line + 9);
+  } else if (ieq(line, "skip clear")) {
+    snifferSkipClear();
   } else if (ieq(line, "pcap")) {
     snifferPrintPcap();
   } else if (ieq(line, "pause")) {
