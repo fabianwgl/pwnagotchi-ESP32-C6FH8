@@ -69,6 +69,7 @@ docs/                  Hardware, protocol, architecture notes
 Arduino core `esp32:esp32@3.3.12` and the GFX library are assumed installed:
 
 ```sh
+arduino-cli core install esp32:esp32@3.3.12
 arduino-cli lib install "GFX Library for Arduino"
 ```
 
