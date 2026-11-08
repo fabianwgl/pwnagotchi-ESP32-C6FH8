@@ -32,7 +32,8 @@ under heavy load.
 | BOOT | 9 | active low, internal pull-up |
 
 The display and the microSD card share MOSI, MISO, and SCLK. The firmware
-starts the display at 40 MHz and the SD card at 4 MHz.
+starts the display at 40 MHz and the SD card at 20 MHz. If a card is unstable
+at 20 MHz, lower the value in `SD.begin()` in `sniffer.cpp`.
 
 ## Display
 
@@ -56,7 +57,8 @@ flicker.
   not overwrite the previous session.
 - Pausing closes the file. Resuming reopens the same file in append mode, so
   a pause does not split the session.
-- The PCAP is flushed every 5 seconds.
+- The PCAP is flushed after each saved capture and at least every 5 seconds.
+- The PCAP uses radiotap headers so every frame keeps its channel and RSSI.
 - Remove the card after a session and copy the newest file to the host.
 
 Without a card the sniffer still runs and reports detected handshakes, but
@@ -66,16 +68,17 @@ Without a card the sniffer still runs and reports detected handshakes, but
 
 | Control | Action |
 | --- | --- |
-| BOOT short press | Toggle channel lock. Locked mode stays on the strongest crackable AP's channel. Unlocked mode hops channels 1 to 13. |
+| BOOT short press | Toggle channel lock. Locked mode stays on the strongest non-skipped crackable AP's channel. Unlocked mode hops channels 1 to 13. |
 | BOOT long press (1 second) | Pause or resume. While paused the face sleeps. |
 | RGB LED, green pulse | A new AP was added to the table. |
-| RGB LED, amber pulse | A handshake was detected. |
-| RGB LED, magenta pulse | A PMKID was detected. |
+| RGB LED, amber pulse | A handshake was saved to the PCAP. |
+| RGB LED, magenta pulse | A PMKID was saved to the PCAP. |
 
 The top bar shows channel, AP count, uptime, and SD state. The middle block
-shows the strongest visible AP, RSSI bars, target count, PMKID count,
-`HS n  SAVED n`, and PCAP size. The bottom bar shows the detected handshake
-count and the current mode: `HOP`, `LOCK`, or `BOOST`.
+shows the strongest visible AP, RSSI bars, `TGT n PMK n`, `HS n SAVED n`, and
+`CLI active/total PCAP size`. The bottom bar shows `PWND n`, where `n` is
+saved handshakes plus saved PMKIDs, and the current mode: `HOP`, `LOCK`, or
+`BOOST`.
 
 ## Power
 
@@ -95,5 +98,9 @@ management.
 - **No serial port on macOS.** Check `ls /dev/cu.*`. The C6 uses native USB
   CDC, so no extra driver is normally needed. The host tool waits 3 seconds
   after opening the port because macOS resets the board on connect.
-- **No handshakes.** Lock to the target's channel, make sure a client
-  reconnects, and remember that PMKIDs are not present on every AP.
+- **No handshakes.** Lock to the target's channel, make sure a client is seen
+  in `clients`, then arm boost. Remember that PMKIDs are not present on every
+  AP and PMF-required APs are refused.
+- **`boost on` says waiting for a client.** The board has not seen a data or
+  association frame from a client of that AP in the last 5 seconds. Wait for
+  traffic, or keep the target channel locked longer.

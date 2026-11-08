@@ -14,8 +14,8 @@
 #include "sniffer.h"
 
 static int lastApCount = 0;
-static int lastHsCount = 0;
-static int lastPmkidCount = 0;
+static int lastSavedHsCount = 0;
+static int lastSavedPmkidCount = 0;
 static bool lastPaused = false;
 static uint32_t lastStat = 0;
 static uint32_t ledUntil = 0;
@@ -82,8 +82,9 @@ static void trim(char *s) {
 
 static void printHelp() {
   Serial.println("{\"t\":\"help\",\"commands\":["
-                 "\"help\",\"status\",\"aps\",\"pcap\",\"pause\",\"resume\","
-                 "\"hop\",\"lock <ch>\",\"target <index>\",\"raw <index>\",\"boost on|off\","
+                 "\"help\",\"status\",\"aps\",\"clients\",\"skips\",\"pcap\",\"pause\",\"resume\","
+                 "\"hop\",\"lock <ch>\",\"target <index>\",\"raw <index>\","
+                 "\"boost on|off\",\"boost broadcast on|off\","
                  "\"clear\",\"selftest\",\"demo hs|pmkid|happy|sleep\",\"reboot\"]}");
 }
 
@@ -97,6 +98,10 @@ static void handleCommand(char *line) {
     snifferPrintStatus();
   } else if (ieq(line, "aps")) {
     snifferPrintAps();
+  } else if (ieq(line, "clients")) {
+    snifferPrintClients();
+  } else if (ieq(line, "skips")) {
+    snifferPrintSkips();
   } else if (ieq(line, "pcap")) {
     snifferPrintPcap();
   } else if (ieq(line, "pause")) {
@@ -118,6 +123,10 @@ static void handleCommand(char *line) {
   } else if (startsWithI(line, "raw ")) {
     int idx = atoi(line + 4);
     snifferDebugRaw(idx);
+  } else if (ieq(line, "boost broadcast on")) {
+    snifferSetBoostBroadcast(true);
+  } else if (ieq(line, "boost broadcast off")) {
+    snifferSetBoostBroadcast(false);
   } else if (ieq(line, "boost on")) {
     snifferSetBoost(true);
   } else if (ieq(line, "boost off")) {
@@ -215,10 +224,10 @@ void loop() {
     }
   }
 
-  if (s.pmkidCount > lastPmkidCount) {
+  if (s.savedPmkidCount > lastSavedPmkidCount) {
     faceSetMood(MOOD_LOVE, "PMKID!!", 6000);
     ledPulse(32, 0, 24, 2500);
-  } else if (s.hsCount > lastHsCount) {
+  } else if (s.savedHsCount > lastSavedHsCount) {
     faceSetMood(MOOD_EXCITED, "gotcha!", 5000);
     ledPulse(32, 24, 0, 1800);
   } else if (s.apCount > lastApCount) {
@@ -227,8 +236,8 @@ void loop() {
   }
 
   lastApCount = s.apCount;
-  lastHsCount = s.hsCount;
-  lastPmkidCount = s.pmkidCount;
+  lastSavedHsCount = s.savedHsCount;
+  lastSavedPmkidCount = s.savedPmkidCount;
 
   if (ledUntil && millis() > ledUntil) {
     rgbLedWrite(PIN_RGB, 0, 0, 0);
@@ -240,7 +249,10 @@ void loop() {
   fs.hsCount = s.hsCount;
   fs.savedHsCount = s.savedHsCount;
   fs.pmkidCount = s.pmkidCount;
+  fs.savedPmkidCount = s.savedPmkidCount;
   fs.targetCount = s.targetCount;
+  fs.clientCount = s.clientCount;
+  fs.activeClientCount = s.activeClientCount;
   fs.channel = s.channel;
   fs.rssi = s.lastRssi;
   strlcpy(fs.ssid, s.lastSsid, sizeof(fs.ssid));

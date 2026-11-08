@@ -54,7 +54,7 @@ python3 -m venv .venv
 ```
 
 - Serial settings: 115200 8N1. Device events are one JSON object per line.
-- `aps` is a plain text table, not JSON.
+- `aps`, `clients`, and `skips` are plain text, not JSON.
 - `--crack` shells out to `hcxpcapngtool` and `hashcat`.
 - macOS resets the board when the USB CDC port opens. The host waits 3 seconds.
 
@@ -73,8 +73,9 @@ python3 -m venv .venv
 ## Code map
 
 - `firmware/pwnagotchi/config.h`: pins, 320x172 geometry, limits, timings.
-- `firmware/pwnagotchi/sniffer.cpp`: promiscuous RX, AP table, EAPOL state
-  machine, PMKID extraction, PCAP writer, channel hop/lock, boost mode.
+- `firmware/pwnagotchi/sniffer.cpp`: promiscuous RX, AP and client tables,
+  EAPOL state machine, PMKID extraction, PCAP writer, channel hop/lock,
+  targeted and broadcast boost, skip list.
 - `firmware/pwnagotchi/face.cpp`: ST7789 layout, moods, partial redraw.
 - `firmware/pwnagotchi/pwnagotchi.ino`: setup/loop, BOOT button, serial command
   parser, RGB LED.
@@ -88,17 +89,32 @@ python3 -m venv .venv
 
 - Strip the 4-byte FCS from `sig_len` before parsing and PCAP writes.
 - `HS` counts detected handshakes. `SAVED` increments only when the completing
-  EAPOL frame is written to the PCAP.
-- `clear` resets detected counters and per-AP flags but not `SAVED`.
+  EAPOL frame is written and flushed to the PCAP. The same applies to
+  `saved_pmkid`.
+- `clear` resets detected counters, per-AP flags, and the full handshake pair
+  state, but not `SAVED`.
 - Pause closes the PCAP. Resume reopens the same path in append mode. Do not
   create a new file or rewrite the header on resume.
-- Each boot creates `/pwn_NNN.pcap` with link type 105. Timestamps are relative
-  to boot.
+- Each boot creates `/pwn_NNN.pcap` with link type 127 and radiotap headers.
+  Timestamps are relative to boot.
 - Beacon throttle is 3 seconds per BSSID. Probe response throttle is 500 ms.
-- Queue length 16, max frame 640 bytes, AP table 64, handshake table 16.
+  Association request throttle is 1 second per client.
+- Queue length 16, client observation queue 32, max frame 640 bytes, AP table
+  64, client table 48, handshake table 16.
+- Clients are learned only from data frames and association requests. A client
+  must be active within 5 seconds to be selected for boost.
 - The display redraws only changed regions. Keep the static frame and rules.
-- Boost is broadcast deauth every 2500 ms from the target BSSID. It must stay
-  opt-in.
+- Boost is targeted unicast deauth to one learned client. It must stay opt-in,
+  require an explicit target, and stay within 3 frames per burst, 100 ms
+  between frames, 5 seconds between bursts, and 12 bursts.
+- `boost broadcast on` is the explicit legacy mode, 2500 ms per frame. It is
+  never the default.
+- Boost stops automatically when the target handshake or PMKID is saved.
+- SSIDs in `SKIP_SSIDS` are never selected by `target`, `strongestIndex`, or
+  boost. `PrivateNet` is in the list by default.
+- PMF-required APs are never boosted. PMF-capable APs may be boosted.
+- Replay counters must match for M1+M2 and `m3Replay == m2Replay + 1` for
+  M2+M3.
 - Only WPA, WPA2, and WPA2/3 count as crackable targets.
 
 ## Testing
@@ -107,7 +123,8 @@ python3 -m venv .venv
 - Python syntax: `python3 -m py_compile host/pwnagotchi.py tools/gen_faces.py`.
 - Generator check: run `tools/gen_faces.py` to a temp path and `cmp` its output
   with `firmware/pwnagotchi/face_assets.h`.
-- Hardware checks: `selftest`, `demo hs`, `demo pmkid`, `aps`, `status`.
+- Hardware checks: `selftest`, `demo hs`, `demo pmkid`, `aps`, `clients`,
+  `skips`, `status`.
 - There is no hardware CI. State exactly what was compiled or tested.
 
 ## Style
@@ -128,4 +145,6 @@ python3 -m venv .venv
 - WPA3-SAE is detected but not captured.
 - microSD is required for PCAP capture.
 - No web UI. Serial is the interface.
-- Broadcast deauth only. Per-client tracking is future work.
+- Boost is manual and targets one AP and one client at a time.
+- Broadcast deauth remains available as an explicit legacy mode.
+- Client MAC randomization can hide devices over time.

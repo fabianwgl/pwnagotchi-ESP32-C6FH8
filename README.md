@@ -3,7 +3,9 @@
 A small WiFi companion for the **Waveshare ESP32-C6-LCD-1.47**. It watches
 2.4 GHz WiFi, shows nearby networks on a Pwnagotchi-style landscape face, and
 saves the material needed to audit WPA2-PSK networks: 4-way handshakes and
-PMKIDs.
+PMKIDs. It also learns the clients associated with each AP, so boost mode can
+send a short unicast deauth to one real client instead of broadcasting to
+everyone.
 
 The face is the point. It looks left and right while scanning, smiles when it
 meets a new AP, gets excited on a handshake, and falls in love with a PMKID.
@@ -38,18 +40,32 @@ under heavy load.
 ## What it does
 
 - Passive beacon and probe-response scanning, with channel hopping.
-- AP table with SSID, BSSID, channel, RSSI, and security type.
-- WPA2 4-way handshake detection (M1+M2 or M2+M3).
-- PMKID detection from EAPOL message 1.
-- PCAP capture to a new `/pwn_NNN.pcap` on the microSD card each boot.
+- AP table with SSID, BSSID, channel, RSSI, security type, PMF state, and a
+  skip flag.
+- Client table with AP, channel, RSSI, age, and observation flags. Clients are
+  learned from ordinary data frames and association requests, even when the
+  payload is encrypted.
+- WPA2 4-way handshake detection with EAPOL replay-counter validation
+  (M1+M2 or M2+M3).
+- PMKID detection from EAPOL message 1 and from the RSN IE of association
+  requests.
+- Hidden SSID resolution from association requests.
+- PCAP capture to a new `/pwn_NNN.pcap` on the microSD card each boot, using
+  radiotap headers with channel and RSSI.
 - Live JSON events over USB serial.
 - Pwnagotchi-style face with moods: scanning, happy, excited, in love, sleeping.
 - Top bar with channel, AP count, uptime, and SD state.
-- Middle status: strongest AP and RSSI, target count, PMKID count, and
-  `HS n  SAVED n`. `HS` is handshakes detected this boot. `SAVED` is
-  handshakes confirmed written to the current session's PCAP.
-- Optional boost mode: targeted deauth on one selected AP, to nudge clients
-  into reconnecting. Off by default. Requires an explicit target.
+- Middle status: strongest AP and RSSI, target count, client count,
+  `HS n  SAVED n`, and PCAP size. `HS` is handshakes detected this boot.
+  `SAVED` is handshakes confirmed written to the current session's PCAP.
+- Bottom bar `PWND` counts saved handshakes plus saved PMKIDs.
+- Optional boost mode: targeted unicast deauth to one learned client of the
+  selected AP. Off by default. Requires an explicit target.
+- Optional `boost broadcast on` keeps the old broadcast behavior for testing.
+- Built-in skip list for networks that must never be targeted. `PrivateNet` is
+  skipped by default.
+- PMF-required APs are detected and boost refuses them because forged deauth
+  frames are ignored.
 
 It does **not** crack passwords on the board. It captures a hash and you crack
 it offline with hashcat. A handshake is not a password.
@@ -94,7 +110,7 @@ sniffs and captures, but `boost on` reports a TX error.
 ## Controls
 
 - **BOOT short press**: toggle channel lock. Locked mode stays on the channel
-  of the strongest crackable AP. Unlocked mode hops channels 1 to 13.
+  of the strongest non-skipped crackable AP. Unlocked mode hops channels 1 to 13.
 - **BOOT long press**: pause or resume. While paused the face sleeps.
 
 ## Serial commands
@@ -114,15 +130,18 @@ Commands (send them with `--cmd`, or type them into a serial monitor):
 | `help` | list commands |
 | `status` | one-line JSON statistics |
 | `aps` | AP table with indices |
+| `clients` | client table with indices |
+| `skips` | SSIDs that are never targeted |
 | `pcap` | PCAP path and size |
 | `pause` / `resume` | stop or start sniffing |
 | `hop` | channel hopping |
 | `lock <1-13>` | lock a channel |
 | `target <index>` | select an AP from `aps` |
 | `raw <index>` | print the next raw beacon for an AP (parser debugging) |
-| `boost on` / `boost off` | targeted deauth, off by default |
+| `boost on` / `boost off` | targeted unicast deauth to one learned client |
+| `boost broadcast on` / `boost broadcast off` | legacy broadcast deauth, explicit |
 | `clear` | reset detected HS/PMKID counters; `SAVED` follows the file |
-| `selftest` | feed a synthetic M1+M2 and PMKID through the real parser |
+| `selftest` | feed synthetic frames through the real parser |
 | `demo hs` / `demo pmkid` / `demo happy` / `demo sleep` | show a face mood |
 | `reboot` | restart |
 
@@ -134,8 +153,16 @@ Example session:
 ```
 
 `target` and `boost` are deliberately separate. Selecting a target only locks
-the radio to its channel. Boost starts transmitting deauth frames. Do that only
-on your own AP.
+the radio to its channel. `boost on` starts targeted unicast deauth to one
+client learned on that AP, with 3 frames, a 5 second cooldown, and a maximum of
+12 bursts. `boost broadcast on` is the old broadcast behavior and is explicit
+only. Use either one only on networks you own or have written permission to
+test. The built-in skip list (`skips`) is never targeted.
+
+Boost stops automatically when the target handshake or PMKID is saved to the
+PCAP. It also refuses targets that require PMF, because clients ignore forged
+deauth frames there. `PrivateNet` is in the skip list by default. Edit
+`SKIP_SSIDS` in `firmware/pwnagotchi/sniffer.cpp` to change the list.
 
 ## Capture and crack
 
@@ -173,17 +200,23 @@ fall to a small wordlist. This is an audit tool, not a guarantee.
 
 - `firmware/pwnagotchi/sniffer.cpp` puts the C6 in promiscuous mode, hops
   channels, parses beacons and probe responses, recognises EAPOL key frames,
-  tracks message 1 to 4, extracts PMKIDs, and writes a plain 802.11 PCAP
-  (link type 105) to the card.
+  tracks EAPOL message 1 to 4 with replay-counter validation, extracts PMKIDs
+  from M1 and from association-request RSN IEs, learns client/AP pairs from
+  data frames, and writes a radiotap PCAP (link type 127) to the card.
+- The client table feeds targeted boost. The board sends a short unicast
+  deauth burst to one active client, alternating AP to client and client to AP,
+  then waits before trying again.
 - `firmware/pwnagotchi/face.cpp` draws the landscape Pwnagotchi UI directly on
   the ST7789. It redraws only the face, status, top bar, and bottom bar, so
   the static paper background and rules do not flicker.
 - `host/pwnagotchi.py` reads the JSON event stream and can run the cracking
   pipeline.
 
-The PCAP contains real beacons and probe responses, so `hcxpcapngtool` can
-recover the SSID for each handshake. The capture is intentionally small: one
-beacon per AP every 3 seconds, probe responses at most every 500 ms.
+The PCAP contains beacons, probe responses, association requests, and EAPOL
+frames, so `hcxpcapngtool` can recover SSIDs and PMKIDs. The capture is
+intentionally small: one beacon per AP every 3 seconds, probe responses at
+most every 500 ms. The file is flushed after each saved handshake or PMKID,
+and at least every 5 seconds.
 
 ## Display and assets
 
@@ -215,8 +248,12 @@ project.
 - 2.4 GHz only. The C6 has no 5 GHz radio.
 - One channel at a time. Locking to the target's channel is much more reliable
   than hopping.
-- Broadcast deauth is crude. A future version can track individual clients and
-  send targeted deauth, which is what bettercap does.
+- Boost is manual and targets one AP and one client at a time. There is no
+  automatic targeting loop.
+- Broadcast deauth is still available as an explicit legacy mode, but it is
+  less reliable than unicast.
+- Some clients randomize their MAC address. The table keeps the associated
+  MAC, which is stable for that session, but it can age out.
 - No on-device cracking.
 - No web UI yet. The serial protocol is the interface.
 - A flash-backed capture fallback would let the board work without a microSD

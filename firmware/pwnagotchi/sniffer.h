@@ -22,6 +22,9 @@ struct ApInfo {
   bool hidden;
   bool handshake;
   bool pmkid;
+  bool pmfCapable;
+  bool pmfRequired;
+  bool skipped;
   uint32_t firstSeen;
   uint32_t lastSeen;
   uint16_t beacons;
@@ -32,9 +35,14 @@ struct SnifferStats {
   int hsCount;
   int savedHsCount;
   int pmkidCount;
+  int savedPmkidCount;
   int eapolCount;
   int targetCount;
+  int skipCount;
+  int clientCount;
+  int activeClientCount;
   int drops;
+  uint32_t clientDrops;
   int channel;
   bool sdOk;
   bool paused;
@@ -49,6 +57,7 @@ struct SnifferStats {
   int lastRssi;
   int pcapSize;
   uint32_t deauthSent;
+  uint32_t deauthBursts;
 };
 
 const char *authName(uint8_t a);
@@ -60,10 +69,13 @@ void snifferSetPaused(bool paused);
 void snifferSetLock(bool lock, uint8_t channel);
 bool snifferToggleLock();
 bool snifferSetBoost(bool on);
+bool snifferSetBoostBroadcast(bool on);
 bool snifferSelectTarget(int index);
 bool snifferSelectTargetBssid(const uint8_t *bssid);
 void snifferClearCounts();
 void snifferPrintAps();
+void snifferPrintClients();
+void snifferPrintSkips();
 void snifferPrintStatus();
 void snifferPrintPcap();
 void snifferDebugRaw(int index);

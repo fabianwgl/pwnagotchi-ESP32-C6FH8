@@ -175,7 +175,7 @@ static void drawMiddle(const FaceState &s) {
   gfx->setCursor(58, 116);
   gfx->print(buf);
 
-  snprintf(buf, sizeof(buf), "TGT %d  PMKID %d", s.targetCount, s.pmkidCount);
+  snprintf(buf, sizeof(buf), "TGT %d  PMK %d", s.targetCount, s.pmkidCount);
   gfx->setCursor(180, 96);
   gfx->print(buf);
 
@@ -184,11 +184,13 @@ static void drawMiddle(const FaceState &s) {
   gfx->print(buf);
 
   if (!s.sdOk) {
-    snprintf(buf, sizeof(buf), "PCAP --");
+    snprintf(buf, sizeof(buf), "CLI %d/%d PCAP --", s.activeClientCount, s.clientCount);
   } else if (s.pcapSize >= 1024 * 1024) {
-    snprintf(buf, sizeof(buf), "PCAP %dM", s.pcapSize / (1024 * 1024));
+    snprintf(buf, sizeof(buf), "CLI %d/%d PCAP %dM", s.activeClientCount, s.clientCount,
+             s.pcapSize / (1024 * 1024));
   } else {
-    snprintf(buf, sizeof(buf), "PCAP %dK", s.pcapSize / 1024);
+    snprintf(buf, sizeof(buf), "CLI %d/%d PCAP %dK", s.activeClientCount, s.clientCount,
+             s.pcapSize / 1024);
   }
   gfx->setCursor(180, 124);
   gfx->print(buf);
@@ -200,7 +202,7 @@ static void drawBottom(const FaceState &s) {
   gfx->setTextColor(C_FG, C_BG);
 
   char buf[24];
-  snprintf(buf, sizeof(buf), "PWND %d", s.hsCount);
+  snprintf(buf, sizeof(buf), "PWND %d", s.savedHsCount + s.savedPmkidCount);
   gfx->setCursor(4, BOTTOM_Y);
   gfx->print(buf);
 

@@ -15,7 +15,10 @@ struct FaceState {
   int hsCount;
   int savedHsCount;
   int pmkidCount;
+  int savedPmkidCount;
   int targetCount;
+  int clientCount;
+  int activeClientCount;
   int channel;
   int rssi;
   char ssid[33];

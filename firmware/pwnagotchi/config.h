@@ -19,12 +19,28 @@
 
 #define MAX_APS          64
 #define MAX_HS           16
+#define MAX_CLIENTS      48
 #define MAX_FRAME        640
 #define PKT_QUEUE_LEN    16
+#define CLIENT_QUEUE_LEN 32
 #define HOP_MS           300
 #define SD_RETRY_MS      30000
 #define PCAP_FLUSH_MS    5000
+
+// Broadcast boost remains available as an explicit legacy mode.
 #define DEAUTH_INTERVAL_MS 2500
+
+// Targeted boost sends a short unicast burst to one learned client.
+#define DEAUTH_BURST_FRAMES  3
+#define DEAUTH_BURST_GAP_MS  100
+#define DEAUTH_COOLDOWN_MS   5000
+#define DEAUTH_WAIT_MS       1000
+#define DEAUTH_MAX_BURSTS    12
+
+// A client is worth deauthing while it is recently active.
+#define CLIENT_SAMPLE_MS 50
+#define CLIENT_ACTIVE_MS 5000
+#define CLIENT_STALE_MS  30000
 
 static inline uint16_t rgb565(uint8_t r, uint8_t g, uint8_t b) {
   return (uint16_t)(((uint16_t)(r & 0xF8) << 8) |

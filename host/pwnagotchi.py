@@ -70,8 +70,16 @@ def print_event(line: str) -> None:
     t = e.get("t")
     if t == "ap":
         if e.get("new"):
+            flags = ""
+            if e.get("skip"):
+                flags += " SKIP"
+            if e.get("pmf") == "R":
+                flags += " PMF-R"
+            elif e.get("pmf") == "C":
+                flags += " PMF-C"
             print(f"+ AP  {e.get('ssid',''):<32} {e.get('bssid','')}  "
-                  f"ch {e.get('ch'):>2}  {e.get('rssi'):>4} dBm  {e.get('enc','')}")
+                  f"ch {e.get('ch'):>2}  {e.get('rssi'):>4} dBm  "
+                  f"{e.get('enc','')}{flags}")
     elif t == "eapol":
         print(f"  EAPOL {e.get('ap')} <- {e.get('sta')}  msg {e.get('msg')}")
     elif t == "hs":
@@ -79,21 +87,38 @@ def print_event(line: str) -> None:
               f"{e.get('ssid','')}  {e.get('ap','')}  ch {e.get('ch')}  "
               f"(total {e.get('count')})\n")
     elif t == "pmkid":
+        src = e.get("src", "m1")
         print("\n  *** PMKID ***  "
               f"{e.get('ssid','')}  {e.get('ap','')}  {e.get('pmkid','')}  "
-              f"(total {e.get('count')})\n")
+              f"({src}, total {e.get('count')})\n")
+    elif t == "client":
+        if e.get("new"):
+            print(f"+ CLIENT {e.get('mac')} -> {e.get('ap')}  "
+                  f"ch {e.get('ch'):>2}  {e.get('rssi'):>4} dBm")
+    elif t == "deauth":
+        if e.get("state") == "waiting_client":
+            print(f"  deauth waiting for a client on {e.get('ap')}")
+        else:
+            print(f"  deauth {e.get('client')} via {e.get('ap')}  "
+                  f"{e.get('frames')} frames  burst {e.get('burst')}")
+    elif t == "boost":
+        print(f"boost {e.get('on')}  {e.get('mode','')}  {e.get('reason','')}")
     elif t == "stat":
         sd = "SD" if e.get("sd") else "--"
         mode = "BOOST" if e.get("boost") else ("LOCK" if e.get("lock") else "HOP")
-        print(f"[AP {e.get('aps'):>3}] [HS {e.get('hs'):>2}] [SAVED {e.get('saved',0):>2}] "
+        print(f"[AP {e.get('aps'):>3}] [CL {e.get('active',0)}/{e.get('clients',0)}] "
+              f"[HS {e.get('hs'):>2}] [SAVED {e.get('saved',0):>2}] "
               f"[PMKID {e.get('pmkid'):>2}] [TGT {e.get('targets'):>2}] "
               f"[ch {e.get('ch'):>2} {mode}] [{sd}] "
               f"[pcap {e.get('pcap',0)} B] [drop {e.get('drops',0)}]")
     elif t in {"error", "warn"}:
         print(f"! {e.get('msg')}", file=sys.stderr)
     elif t == "selftest":
-        print("self-test: synthetic M1/M2 + PMKID accepted (not written to PCAP)")
-    elif t in {"sd", "pcap", "target", "mode", "boost", "state", "clear", "face", "sniffer", "demo"}:
+        print(f"self-test: ok={e.get('ok')} valid={e.get('valid')} "
+              f"mismatch={e.get('mismatch')} pmkid={e.get('pmkid')} "
+              f"m2m3={e.get('m2m3')} skip={e.get('skip')} "
+              f"assoc_pmkid={e.get('assoc_pmkid')} pmf={e.get('pmf')}")
+    elif t in {"sd", "pcap", "target", "mode", "state", "clear", "face", "sniffer", "demo"}:
         print(json.dumps(e, separators=(",", ":")))
     # ignore periodic noise unless it is a table or an unknown event
 
