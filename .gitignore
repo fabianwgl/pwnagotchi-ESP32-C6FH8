@@ -1,0 +1,29 @@
+# Arduino and ESP-IDF build output
+build/
+firmware/**/build/
+sdkconfig
+sdkconfig.old
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+
+# Captures and local secrets
+*.pcap
+*.pcapng
+*.cap
+*.22000
+*.hccapx
+*.csv
+*.jsonl
+.env
+.env.*
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.vscode/
+.idea/

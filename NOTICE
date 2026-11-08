@@ -1,0 +1,22 @@
+esp32-pwnagotchi
+Copyright (C) 2026 Fabian General
+
+This project is licensed under the GNU General Public License, version 3.
+See LICENSE.
+
+Third-party notices
+-------------------
+
+Pwnagotchi
+  The face expressions in firmware/pwnagotchi/face.cpp and the generated
+  bitmaps in firmware/pwnagotchi/face_assets.h come from pwnagotchi/ui/faces.py.
+  Project: https://github.com/evilsocket/pwnagotchi
+  License: GPL-3.0
+
+DejaVu Sans Mono Bold
+  assets/DejaVuSansMono-Bold.ttf
+  License: Bitstream Vera Fonts license, see assets/DejaVu-LICENSE.txt
+
+Arduino and ESP-IDF libraries (not vendored)
+  Arduino_GFX_Library, ESP32 Arduino core, SD, SPI, WiFi, FreeRTOS.
+  Each library keeps its own license.
